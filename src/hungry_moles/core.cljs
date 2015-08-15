@@ -3,35 +3,48 @@
     (:require-macros [hungry-moles.macros :as m]))
 
 (def entities
-  [{:key "ship"
-    :asset "assets/ship.png"
+  [{:key "bullet"
+    :asset {:src "assets/img/bullet.png"}
     :body :arcade
-    :x 200
-    :y 200
+    :group 30}
+   {:key "invader"
+    :asset {:src "assets/img/invader32x32x4.png"
+            :type :spritesheet
+            :x 32 :y 32}
+    :body :arcade
+    :group 30
     }
+   {:key "enemyBullet"
+    :asset {:src "assets/img/enemy-bullet.png"}
+    :group 30}
    {:key "ship"
-    :asset "assets/ship.png"
-    :body :arcade
-    :x 400
-    :y 400
+    :asset {:src "assets/img/player.png"}
     }
-   {:key "ship"
-    :asset "assets/ship.png"
-    :body :arcade
-    :x 600
-    :y 620
-    }])
+   {:key "explode"
+    :asset {:src "assets/img/explode.png"}
+    }
+   
+   ;; {:key "background"
+   ;;  :asset {:src "assets/img/background.png"}
+   ;;  :x 200 :y 500}
+   ])
+
+;; (def non-entities
+;;   [{:key "starfield"
+;;     :asset {:src "assets/img/starfield.png"}
+;;     :x 0 :y 0 :x2 800 :y2 600}])
 
 (defonce phaser-game (atom))
 
 (defn get-screen []
-  (m/defscreen*
+  (p/defscreen
     :size [800 600] 
-    :title "my-demo"
+    :title "invaders"
     :start-system :arcade
     :states {:Play {:preload (fn [game]
                                (doseq [ent entities]
-                                 (.image (.-load game) (:key ent) (:asset ent))))
+                                 (m/call-in* game [-gload image]
+                                         (:key ent) (:src (:asset ent)))))
                     
                     :create (fn [game]
                               (let [world (.-world game)]
@@ -40,11 +53,15 @@
                     
                     :update (fn [game]
                               (doseq [ch (p/get-entities (.-world game))]
-                                (.moveToPointer (.-arcade (.-physics game)) ch)))
+                                ;; TBA
+                                ))
                     
                     :render (fn [game] nil)}
              
              }))
+
+
+
 
 (defn start-game []
   (let [game (get-screen)]

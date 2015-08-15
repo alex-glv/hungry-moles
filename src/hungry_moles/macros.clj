@@ -13,21 +13,40 @@
 ;;        obj#)
 ;;     ))
 
-(defmacro defscreen* [& params]
-  (let [params (apply hash-map params)
-        [x y] (:size params)]
-    (when (:states params)
-      (let [ob# 'Object up# 'update cr# 'create
-            rn# 'render pr# 'preload un# '_ gm# (gensym "game")]
-        `(let [~gm# (js/Phaser.Game. ~x ~y (.-auto js/Phaser)  ~(:title params))]
-           ~@(for [[state-name state-obj] (:states params)]
-               `(.add (.-state ~gm#) ~(str (name state-name))
-                      (deftype ~(gensym (name state-name)) [game#] ~ob# 
-                               (~pr# [~un#] (~(:preload state-obj) game#))
-                               (~cr# [~un#] (~(:create state-obj) game#))
-                               (~up# [~un#] (~(:update state-obj) game#))
-                               (~rn# [~un#] (~(:render state-obj) game#)))))
+;; (defmacro defscreen* [& params]
+;;   (let [params (apply hash-map params)
+;;         [x y] (:size params)]
+;;     (when (:states params)
+;;       (let [ob# 'Object up# 'update cr# 'create
+;;             rn# 'render pr# 'preload un# '_ gm# (gensym "game")]
+;;         `(let [~gm# (js/Phaser.Game. ~x ~y (.-auto js/Phaser)  ~(:title params))]
+;;            ~@(for [[state-name state-obj] (:states params)]
+;;                `(.add (.-state ~gm#) ~(str (name state-name))
+;;                       (deftype ~(gensym (name state-name)) [game#] ~ob#
+;;                                ;; preload
+;;                                (~pr# [~un#] (
+;;                                              ;; ADD ENTITIES PRELOAD
+;;                                              ~(:preload state-obj) game#))
+;;                                ;; create
+;;                                (~cr# [~un#]
+;;                                  (if-let [sys# ~(:start-system params)]
+;;                                    (cond
+;;                                      (= :arcade sys#) (.startSystem (.-physics game#) (.-ARCADE js/Phaser.Physics))
+;;                                      :else (throw (js/Error. "System is not supported!"))))
+;;                                  (~(:create state-obj) game#))
+;;                                ;; update
+;;                                (~up# [~un#] (~(:update state-obj) game#))
+;;                                ;; render
+;;                                (~rn# [~un#] (~(:render state-obj) game#)))))
 
-           ~@(if-let [sys (:start-system params)]
-               `(.startSystem (.-physics ~gm#) (.-ARCADE js/Phaser.Physics)))
-           ~gm#)))))
+           
+;;            ~gm#)))))
+
+(defmacro call-in* [js-object in & params]
+  "Calls nested function on js-object
+   (call-in* obj [prop method] (body))
+   results in (. (. obj prop) method (body))"
+  (into params
+        (reverse
+         (reduce (fn [c x] `(. ~c ~x)) js-object in))))
+
