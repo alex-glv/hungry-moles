@@ -46,7 +46,8 @@
   "Calls nested function on js-object
    (call-in* obj [prop method] (body))
    results in (. (. obj prop) method (body))"
-  (into params
-        (reverse
-         (reduce (fn [c x] `(. ~c ~x)) js-object in))))
+  (into
+   params
+   (reverse
+    (reduce (fn [c x] `(. ~c ~x)) js-object in))))
 

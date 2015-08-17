@@ -1,11 +1,13 @@
-(ns hungry-moles.protos)
+(ns hungry-moles.protos
+  (:require-macros [hungry-moles.macros :as m]))
 
 
 ;; PROTOS
 
 (defprotocol IManageEntities
   (add-entities [this entities])
-  (get-entities [this]))
+  (get-entities [this])
+  (update-entities [this entities]))
 
 (defprotocol IVisibleEntity
   (add! [_ game])
@@ -19,45 +21,38 @@
   IVisibleEntity
   (add! [_ game]
     (let [sprite (.sprite (.-add game) (:x entity) (:y entity) (:key entity))]
-      sprite)
-    )
+      (.log js/console sprite)
+      sprite))
   (preload! [_ game]
     (.image (.-load game) (:key entity) (:src (:asset entity)))))
 
-(deftype SpriteEntity [entity]
-  IVisibleEntity
-  (add! [_ game]
-    (let [sprite (.tileSprite (.-add game) (:x entity) (:y entity) (:x2 entity) (:y2 entity) (:key entity))]
-      sprite))
-  (preload! [_ game]
-    (.spritesheet (.-load game) (:key entity) (get-in entity :asset :src) (get-in entity :asset :x) (get-in entity :asset :y))))
 
 (extend-type js/Phaser.World
   IManageEntities
   (add-entities [this entities]
-    (doseq [entity entities]
-      (let [game (.-game this)
-            ;; sprite-entity (case (or :image (:type (:asset entity)))
-            ;;                 :spritesheet (SpriteEntity. entity)
-            ;;                 :image (StaticEntity. entity)
-            ;;          :else (throw (js/Error "Unknown entity type passed")))
-            ;; sprite (add! sprite-entity game)
-            ]
-        
-        ;; (if (:body entity)
-        ;;   (case (:body entity)
-        ;;     :arcade (set! (.-physicsBodyType sprite) (.-ARCADE js/Phaser.Physics))
-        ;;     :else nil))
-        ;; (.add this sprite)
-        )))
+    (let [game (.-game this)
+          mapped-entities (map #(assoc % :sprite (add! (StaticEntity. %) game)) entities)]
+      (doseq [entity mapped-entities]
+        (if (:body entity)
+          (case (:body entity)
+            :arcade (set! (.-physicsBodyType (:sprite entity)) (.-ARCADE js/Phaser.Physics))
+            :else nil))
+        (.add this (:sprite entity)))
+      (set! (m/call-in* this [-entities] ) mapped-entities)))
+  
   (get-entities [this]
-    (seq (.-children this))))
-
-
-;; (extend-type js/Phaser.DisplayObject
-;;   IAssociative
-;;   (-assoc [])
-;;   )
+    (m/call-in* this [-entities] ))
+  
+  (update-entities [this entities]
+    (let [stored-entities (get-entities this)]
+      (.log js/console stored-entities)
+      (doseq [ent entities]
+        (let [phy-ent (get stored-entities (:key ent))]
+          (set! (.-x phy-ent) (:x ent))
+          (set! (.-y phy-ent) (:y ent))))
+      ))
+  )
+  
 
 (defn defscreen [& params]
   (let [params (apply hash-map params)
@@ -65,15 +60,24 @@
     (when (:states params)
       (let [game (js/Phaser.Game. x y (.-auto js/Phaser)  (:title params))]
         (doseq [[state-name state-obj] (:states params)]
+          
           (.add (.-state game) (str (name state-name))
                 (fn [game]
                   (reify Object
                     ;; preload
-                    (preload [_] (
-                                  ;; ADD ENTITIES PRELOAD
-                                  (:preload state-obj) game))
+                    (preload [_]
+                      (doseq [ent (or (:entities state-obj) {})]
+                        
+                        (m/call-in* game [-load image] (:key ent) (:src (:asset ent))))
+                      
+                      (:preload state-obj) game)
                     ;; create
                     (create [_]
+                      (let [world (.-world game)]
+                        (set! (.-enableBody world) true)
+                        
+                        (add-entities world (:entities state-obj)))
+                      
                       (if-let [sys (:start-system params)]
                         (cond
                           (= :arcade sys) (.startSystem (.-physics game) (.-ARCADE js/Phaser.Physics))
