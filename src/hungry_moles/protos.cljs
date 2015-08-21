@@ -93,5 +93,11 @@
 (defn defentity [game params & systems]
   (assoc params :systems (map #(% game params) systems)))
 
-(defn context [f with]
-  (partial f with))
+
+;; (defprotocol ISystem
+;;   (methods [this]))
+
+;; (deftype Physical [x y key]
+;;   (methods [_]
+;;     [(fn [])
+;;      (fn [])]))

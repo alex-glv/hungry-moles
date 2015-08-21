@@ -6,8 +6,8 @@
 (defonce entities (atom))
 (def entities-map [ {:key "ship"
                      :asset {:src "assets/img/player.png"}
-                     :x 200
-                     :y 200} ])
+                     :x 400
+                     :y 400} ])
 
 (declare update-entity)
 
@@ -21,7 +21,8 @@
                                  (m/call-in* game [-load image] (:key e) (:src (:asset e)))))
                     
                     :create (fn [game]
-                              (let [e (map #(p/defentity game % #'p/physical) entities-map)
+                              (let [e (map (fn [e]
+                                             (p/defentity game e #'p/physical)) entities-map)
                                     w (m/call-in* game [-world])]
                                 (reset! entities e)
                                 (p/add-entities w e)))
@@ -36,8 +37,9 @@
   (let [x (:x e)
         y (:y e)
         ue (-> e
-               (assoc :x (rand-int 600))
-               (assoc :y (rand-int 800)))]
+               (assoc :y (+ 200 (* 100 (+ 1 (.sin js/Math
+                                                 (/ (.now js/Date) 1000)))))))]
+    
     ue))
 
 (defn start-game []
