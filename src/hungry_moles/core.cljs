@@ -4,12 +4,33 @@
 
 (defonce game (atom))
 (defonce entities (atom))
-(def entities-map [ {:key "ship"
+(declare update-entity grid)
+
+(defn grid [x-count y-count start-from-x start-from-y spread]
+  (for [y (range start-from-y (+ start-from-y (* y-count spread)) spread)]
+    (for [x (range start-from-x (+ start-from-x (* x-count spread)) spread)]
+      [x y])))
+
+(def entities-map [{:key "ship"
                      :asset {:src "assets/img/player.png"}
                      :x 400
-                     :y 400} ])
+                     :y 400}
+                    {:key "invader"
+                     :asset {:src "assets/img/invader32x32x4.png"
+                             :type :spritesheet
+                             :x 32 :y 32 :frames nil}
+                     :animations {:fly {:frames [0 1 2 3 4 5]
+                                        :loop true
+                                        :framerate 60
+                                        :moves false}}
+                     :group {:total 30
+                             :coords (grid 10 3 40 20 60)}
+                     } ])
 
-(declare update-entity)
+
+(def systems-map {:physical #'p/physical})
+
+
 
 (defn get-screen []
   (p/defscreen
@@ -18,11 +39,12 @@
     :start-system :arcade
     :states {:Play {:preload (fn [game]
                                (doseq [e entities-map]
-                                 (m/call-in* game [-load image] (:key e) (:src (:asset e)))))
+                                 (p/load-resource game e)
+                                 ))
                     
                     :create (fn [game]
                               (let [e (map (fn [e]
-                                             (p/defentity game e #'p/physical)) entities-map)
+                                             (p/defentity game e (:physical systems-map))) entities-map)
                                     w (m/call-in* game [-world])]
                                 (reset! entities e)
                                 (p/add-entities w e)))
@@ -37,7 +59,7 @@
   (let [x (:x e)
         y (:y e)
         ue (-> e
-               (assoc :y (+ 200 (* 100 (+ 1 (.sin js/Math
+               (assoc :x (+ 200 (* 100 (+ 1 (.sin js/Math
                                                  (/ (.now js/Date) 1000)))))))]
     
     ue))
@@ -60,13 +82,7 @@
 ;;                 ;;  :asset {:src "assets/img/bullet.png"}
 ;;                 ;;  :body :arcade
 ;;                 ;;  :group 30}
-;;                 ;; {:key "invader"
-;;                 ;;  :asset {:src "assets/img/invader32x32x4.png"
-;;                 ;;          :type :spritesheet
-;;                 ;;          :x 32 :y 32}
-;;                 ;;  :body :arcade
-;;                 ;;  :group 30
-;;                 ;;  }
+                
 ;;                 ;; {:key "enemyBullet"
 ;;                 ;;  :asset {:src "assets/img/enemy-bullet.png"}
 ;;                 ;;  :group 30}
