@@ -1,36 +1,29 @@
 (ns ^:figwheel-always hungry-moles.core
-    (:require [hungry-moles.protos :as p])
+    (:require [hungry-moles.protos :as p]
+              [hungry-moles.helpers :as h]
+              [cljs-uuid-utils.core :as uuid])
     (:require-macros [hungry-moles.macros :as m]))
 
 (defonce game (atom))
 (defonce entities (atom))
-(declare update-entity grid)
-
-(defn grid [x-count y-count start-from-x start-from-y spread]
-  (for [y (range start-from-y (+ start-from-y (* y-count spread)) spread)]
-    (for [x (range start-from-x (+ start-from-x (* x-count spread)) spread)]
-      [x y])))
+(declare update-entity)
 
 (def entities-map [{:key "ship"
-                     :asset {:src "assets/img/player.png"}
-                     :x 400
-                     :y 400}
+                    :asset {:src "assets/img/player.png"}
+                    :x 400
+                    :y 400
+                    :uuid (uuid/make-random-uuid)}
                     {:key "invader"
                      :asset {:src "assets/img/invader32x32x4.png"
                              :type :spritesheet
                              :x 32 :y 32 :frames nil}
-                     :animations {:fly {:frames [0 1 2 3 4 5]
-                                        :loop true
-                                        :framerate 60
-                                        :moves false}}
+                     :animations [{:fly {:frames [0 1 2 3]
+                                         :loop true
+                                         :fps 20}}]
                      :group {:total 30
-                             :coords (grid 10 3 40 20 60)}
+                             :coords (h/grid 10 3 40 20 60)}
+                     :uuid (uuid/make-random-uuid)
                      } ])
-
-
-(def systems-map {:physical #'p/physical})
-
-
 
 (defn get-screen []
   (p/defscreen
@@ -39,15 +32,15 @@
     :start-system :arcade
     :states {:Play {:preload (fn [game]
                                (doseq [e entities-map]
-                                 (p/load-resource game e)
-                                 ))
+                                 (p/load-resource game e)))
                     
                     :create (fn [game]
-                              (let [e (map (fn [e]
-                                             (p/defentity game e (:physical systems-map))) entities-map)
+                              (let [e (map #(p/defentity game %) entities-map)
                                     w (m/call-in* game [-world])]
                                 (reset! entities e)
-                                (p/add-entities w e)))
+                                (p/add-entities w e)
+                                (doseq [ent @entities]
+                                  (p/play-animation (:body ent) "fly"))))
                     :update (fn [game]
                               (let [w (m/call-in* game [-world])
                                     new (map update-entity @entities)]

@@ -1,7 +1,6 @@
 (ns hungry-moles.protos
   (:require-macros [hungry-moles.macros :as m]))
 
-
 ;; PROTOS
 
 (defprotocol IManageEntities
@@ -9,69 +8,51 @@
   (get-entities [this])
   (update-entities [this entities]))
 
-(defprotocol IVisibleEntity
-  (pos-update! [this x y])
-  (bring-up [this parent])
-  (create-primitive [this])
-  (preload [this]))
+(defprotocol IVisibleBody
+  (attach [this parent])
+  (update! [this entity])
+  (add-animations [this details])
+  (play-animation [this name]))
 
-(defprotocol IBodyEntity
-  (enable-body! [this]))
-
-(defrecord PhysicalBody [game x y key]
-  IVisibleEntity
-  (pos-update! [this x y]
-    (let [p (:primitive this)]
+(defrecord PhysicalBody [game x y key primitive]
+  IVisibleBody
+  (attach [this parent]
+    (m/call-in* parent [add] primitive))
+  
+  (update! [this entity]
+    (let [x (:x entity)
+          y (:y entity)
+          p primitive]
       (set! (.-x p) x)
       (set! (.-y p) y)))
 
-  (bring-up [this parent]
-    (m/call-in* parent [add] (:primitive this)))
-  
-  (create-primitive [this]
-    (let [p (js/Phaser.Sprite. game (:x this) (:y this) (:key this))]
-      p))
-  
-  IBodyEntity
-  (enable-body! [this]
-    (let [p (:primitive this)]
-      (set! (.-physicsBodyType p) (.-ARCADE js/Phaser.Physics)))))
+  (add-animations [this details]
+    (doseq [anim-list details]
+      (doseq [anim anim-list]
+        (let [name (clj->js (first anim))
+              d (second anim)]
+          (m/call-in* primitive [-animations add] name (clj->js (:frames d)) (:fps d) (:loop d))))))
+
+  (play-animation [this name]
+    (m/call-in* primitive [play] name)))
 
 
-(defrecord PhysicalGroup [game parent key group]
-  IVisibleEntity
-  (pos-update! [this x y])
-  
-  (create-primitive [this]
-    (let [p (js/Phaser.Group. game parent (:key this))]
-      p))
-
-  (bring-up [this parent]
-    (doseq [row (:coords  group)]
-      (doseq [[x y] row]
-        (m/call-in* (:primitive this) [create] x y (:key this)))))
-  
-  IBodyEntity
-  (enable-body! [this]
-    (let [p (:primitive this)]
-      (set! (.-physicsBodyType p) (.-ARCADE js/Phaser.Physics)))))
-
-;; TYPES>>
+(defn create-primitive
+  [game record]
+  (let [p (js/Phaser.Sprite. game (:x record) (:y record) (:key record))]
+    (set! (.-physicsBodyType p) (.-ARCADE js/Phaser.Physics))
+    p))
 
 (extend-type js/Phaser.World
   IManageEntities
   (add-entities [this entities]
     (doseq [e entities]
-      (doseq [s (:systems e)]
-        (bring-up s this))))
-  
-  (get-entities [this] )
+      (attach (:body e) this)))
   
   (update-entities [this entities]
     (doseq [e entities]
-      (doseq [s (:systems e)]
-        (pos-update! s (:x e) (:y e))))))
-  
+      (update! (:body e) e))))
+
 
 (defn defscreen [& params]
   (let [params (apply hash-map params)
@@ -103,21 +84,19 @@
 
 
 
-;; systems
-(defn physical [game params]
+(defn make-body [game params]
   "Creates physical system object, attaches it to the entity and creates primitive (drawing)"
-  (let [s (if (:group params)
-            (PhysicalGroup. game (m/call-in* game [-world]) (:key params) (:group params))
-            (PhysicalBody. game (:x params) (:y params) (:key params))) 
-        v (create-primitive s)
-        sys-enabled (assoc s :primitive v)]
-    (enable-body! sys-enabled)
-    sys-enabled))
+  (let [s (PhysicalBody. game (:x params) (:y params) (:key params) (create-primitive game params))]
+    (if-let [a (:animations params)]
+      (add-animations s a))
+    s))
 
 ;; helpers
-(defn defentity [game params & systems]
+
+(defn defentity [game params]
   "Attaches systems to the entity map"
-  (assoc params :systems (map #(% game params) systems)))
+  (assoc params :body (make-body game params)))
+
 
 (defmulti load-resource (fn [game entity]
                           (:type (:asset entity))))
@@ -126,7 +105,7 @@
   :spritesheet
   [game entity]
   (let [asset (:asset entity)]
-    (m/call-in* game [-load spritesheet] (:key entity) (:src asset) (:x asset) (:y asset) (:frames asset))))
+    (m/call-in* game [-load spritesheet] (:key entity) (:src asset) (:x asset) (:y asset))))
 
 (defmethod load-resource
   :default

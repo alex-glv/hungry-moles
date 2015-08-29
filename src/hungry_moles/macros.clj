@@ -50,4 +50,3 @@
    params
    (reverse
     (reduce (fn [c x] `(. ~c ~x)) js-object in))))
-
