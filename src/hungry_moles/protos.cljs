@@ -1,9 +1,8 @@
 (ns hungry-moles.protos
   (:require-macros [hungry-moles.core :as m]))
 
-(def entities (atom))
-(declare make-body)
-
+(declare make-body make-group)
+(def top-parent (atom))
 ;; PROTOS
 
 (defprotocol IManageEntities
@@ -11,27 +10,49 @@
   (get-entities [this])
   (update-entity [this e]))
 
+(defprotocol IBody
+  (enable-body! [this]))
+
 (defprotocol IVisibleBody
-  (attach [this parent])
   (update! [this entity])
-  (add-animations [this])
+  (add-animations [this a])
   (play-animation [this name]))
 
 (defprotocol IEntityStorage
-  (get-body [this uuid])
-  (get-primitive [this uuid])
-  (get-spec [this uuid])
-  (register-entity [this e]))
+  (get-body [this e])
+  (get-spec [this e])
+  (register-entity [this e body primitive parent])
+  (-get-primitive [this e])
+  (-record-meta [this e]))
+                  
+
+(defrecord EntityStorage [st]
+  IEntityStorage
+  (-record-meta [this e]
+    (get @st (:uuid (meta e))))
+  (get-body [this e]
+    (let [rm (-record-meta this e)]
+      (:body rm)))
+  (-get-primitive [this e]
+    (let [rm (-record-meta this e)]
+      (:primitive rm)))
+  (get-spec [this e]
+    (let [rm (-record-meta this e)]
+      (:spec rm)))
+  (register-entity [this spec uuid body primitive]
+    (swap! st assoc
+           uuid
+           {:body body :primitive primitive :spec spec}))
+  
+  cljs.core/ICounted
+  (-count [_] (count @st)))
 
 (defprotocol IEntity
   (preload [this game])
-  (create [this game primitive]))
+  (create [this game]))
 
-(defrecord PhysicalBody [game x y key animations primitive]
+(defrecord PhysicalBody [game x y key primitive]
   IVisibleBody
-  (attach [this parent]
-    (add-animations this)
-    (m/call-in* parent [add] primitive))
   
   (update! [this entity]
     (let [x (:x entity)
@@ -40,8 +61,8 @@
       (set! (.-x p) x)
       (set! (.-y p) y)))
 
-  (add-animations [this]
-    (doseq [anim-list animations]
+  (add-animations [this a]
+    (doseq [anim-list a]
       (doseq [anim anim-list]
         (let [name (clj->js (first anim))
               d (second anim)]
@@ -50,50 +71,57 @@
   (play-animation [this name]
     (m/call-in* primitive [play] name)))
 
+(def storage (EntityStorage. (atom {})))
 
-(extend-type js/Phaser.World
+(defrecord Group [primitive]
+  IBody
+  (enable-body! [this]
+    (set! (.-enableBody primitive) true))
   IManageEntities
   (add-entity [this e]
-    (let [uuid (:uuid (meta e))
-          primitive (make-body (.-game this) e)
-          c (create (:entity (meta e)) (.-game this) primitive)]
-      (swap! entities assoc uuid c)
-      (attach c this)))
+    (let [p (-get-primitive storage e)]
+      (m/call-in* primitive [add] p)))
   
   (update-entity [this e]
-    (let [uuid (:uuid (meta e))]
-      (update! (get @entities uuid) e))))
+    (update! (get-body storage e) e)))
 
 (defn defscreen [& params]
   (let [params (apply hash-map params)
-        [x y] (:size params)]
+        [x y] (:size params)
+        entities (:entities params)]
     (when (:states params)
       (let [game (js/Phaser.Game. x y (.-auto js/Phaser)  (:title params))]
         (doseq [[state-name state-obj] (:states params)]
-          (.add (.-state game) (str (name state-name))
-                (fn [game]
-                  (reify Object
-                    ;; preload
-                    (preload [_]
-                      
-                      ((:preload state-obj) game))
-                    ;; create
-                    (create [_]
-                      (let [world (.-world game)]
-                        (set! (.-enableBody world) true))
-                      (if-let [sys (:start-system params)]
-                        (cond
-                          (= :arcade sys) (.startSystem (.-physics game) (.-ARCADE js/Phaser.Physics))
-                          :else (throw (js/Error. "System is not supported!"))))
-                      ((:create state-obj) game))
-                    ;; update
-                    (update [_] ((:update state-obj) game))
-                    ;; render
-                    (render [_] ((:render state-obj) game))))))
+          (.add
+           (.-state game) (str (name state-name))
+           (fn [game]
+             (reify Object
+               ;; preload
+               (preload [_]
+                 (doseq [e entities]
+                   (preload (:entity (meta e)) game))
+                 ((:preload state-obj) game (Group. (.-world game))))
+               ;; create
+               (create [_]
+                 (let [top-group (Group. (.-world game))]
+                   (enable-body! top-group)
+                   (if-let [sys (:start-system params)]
+                     (cond
+                       (= :arcade sys) (.startSystem (.-physics game) (.-ARCADE js/Phaser.Physics))
+                       :else (throw (js/Error. "System is not supported!"))))
+                   (doseq [e entities]
+                     (create (:entity (meta e)) game)
+                     (add-entity top-group e))
+                   ((:create state-obj) game top-group)))
+               ;; update
+               (update [_] ((:update state-obj) game (Group. (.-world game))))
+               ;; render
+               (render [_] ((:render state-obj) game))))))
         game))))
 
 
-
+(defn register-world [world]
+  (reset! top-parent (Group. world)))
 
 (defn make-body [game params]
   "Creates physical system object, attaches it to the entity and creates primitive (drawing)"
@@ -106,6 +134,9 @@
     s))
 
 ;; helpers
+
+(defn make-group [parent]
+  (Group. parent))
 
 (defn defentity [game params]
   "Attaches systems to the entity map"
@@ -125,6 +156,3 @@
   :default
   [game entity]
   (m/call-in* game [-load image] (:key entity) (:src (:asset entity))))
-
-(defn get-body [uuid]
-  (get @entities uuid))

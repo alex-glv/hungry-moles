@@ -2,28 +2,30 @@
     (:require [hungry-moles.protos :as p]
               [hungry-moles.helpers :as h]
               [cljs-uuid-utils.core :as uuid])
+    (:use (cljs-uuid-utils.core :only (make-random-uuid)))
     (:require-macros [hungry-moles.core :as m]))
 
 (defonce game (atom))
-(defonce entities (atom))
+(defonce ship-mutable (atom))
 (declare update-entity)
-
-(m/defentity* ship (uuid/make-random-uuid)
+(def *uuid-fn* make-random-uuid)
+(m/defentity* ship
   {:key "ship"
    :asset {:src "assets/img/player.png"}
    :x 400
    :y 400
 })
 
-(m/defentity* invaders (uuid/make-random-uuid)
+(m/defentity* invaders
   {:key "invader"
    :asset {:src "assets/img/invader32x32x4.png"
            :type :spritesheet
            :x 32 :y 32 :frames nil}
+   :x 100 :y 100
    :animations [{:fly {:frames [0 1 2 3]
                        :loop true
                        :fps 20}}]
-   })
+})
 
 
 
@@ -32,24 +34,17 @@
     :size [800 600] 
     :title "invaders"
     :start-system :arcade
-    :entities [#'ship #'invaders]
-    :states {:Play {:preload (fn [game]
-                               (p/preload (:entity (meta ship)) game)
-                               (p/preload (:entity (meta invaders)) game))
-                    
-                    :create (fn [game]
-                              (let [ w (m/call-in* game [-world])]
-                                (p/add-entity w ship)
-                                (p/add-entity w invaders)
-                                (reset! entities ship)
-                                (p/play-animation (p/get-body (:uuid (meta invaders))) "fly")))
-                    :update (fn [game]
-                              (let [w (m/call-in* game [-world])
-                                    new (update-entity @entities)]
-                                (reset! entities new)
-                                (p/update-entity w new))
+    :entities [ship invaders]
+    :states {:Play {:preload (fn [game] (.log js/console "Preload. Entities in registry: " (count p/storage) ))
+                    :create (fn [game parent]
+                              (p/play-animation (p/get-body p/storage invaders) "fly")
+                              (reset! ship-mutable ship))
+                    :update (fn [game parent]
+                              (let [new (update-entity @ship-mutable)]
+                                (swap! ship-mutable assoc :x (:x new) :y (:y new))
+                                (p/update-entity parent @ship-mutable))
                               )
-                    :render (fn [game] nil)}}))
+                    :render (fn [game parent] nil)}}))
 
 (defn update-entity [e]
   (let [x (:x e)
