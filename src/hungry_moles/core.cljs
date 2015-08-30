@@ -2,50 +2,53 @@
     (:require [hungry-moles.protos :as p]
               [hungry-moles.helpers :as h]
               [cljs-uuid-utils.core :as uuid])
-    (:require-macros [hungry-moles.macros :as m]))
+    (:require-macros [hungry-moles.core :as m]))
 
 (defonce game (atom))
 (defonce entities (atom))
 (declare update-entity)
 
-(def entities-map [{:key "ship"
-                    :asset {:src "assets/img/player.png"}
-                    :x 400
-                    :y 400
-                    :uuid (uuid/make-random-uuid)}
-                    {:key "invader"
-                     :asset {:src "assets/img/invader32x32x4.png"
-                             :type :spritesheet
-                             :x 32 :y 32 :frames nil}
-                     :animations [{:fly {:frames [0 1 2 3]
-                                         :loop true
-                                         :fps 20}}]
-                     :group {:total 30
-                             :coords (h/grid 10 3 40 20 60)}
-                     :uuid (uuid/make-random-uuid)
-                     } ])
+(m/defentity* ship (uuid/make-random-uuid)
+  {:key "ship"
+   :asset {:src "assets/img/player.png"}
+   :x 400
+   :y 400
+})
+
+(m/defentity* invaders (uuid/make-random-uuid)
+  {:key "invader"
+   :asset {:src "assets/img/invader32x32x4.png"
+           :type :spritesheet
+           :x 32 :y 32 :frames nil}
+   :animations [{:fly {:frames [0 1 2 3]
+                       :loop true
+                       :fps 20}}]
+   })
+
+
 
 (defn get-screen []
   (p/defscreen
     :size [800 600] 
     :title "invaders"
     :start-system :arcade
+    :entities [#'ship #'invaders]
     :states {:Play {:preload (fn [game]
-                               (doseq [e entities-map]
-                                 (p/load-resource game e)))
+                               (p/preload (:entity (meta ship)) game)
+                               (p/preload (:entity (meta invaders)) game))
                     
                     :create (fn [game]
-                              (let [e (map #(p/defentity game %) entities-map)
-                                    w (m/call-in* game [-world])]
-                                (reset! entities e)
-                                (p/add-entities w e)
-                                (doseq [ent @entities]
-                                  (p/play-animation (:body ent) "fly"))))
+                              (let [ w (m/call-in* game [-world])]
+                                (p/add-entity w ship)
+                                (p/add-entity w invaders)
+                                (reset! entities ship)
+                                (p/play-animation (p/get-body (:uuid (meta invaders))) "fly")))
                     :update (fn [game]
                               (let [w (m/call-in* game [-world])
-                                    new (map update-entity @entities)]
+                                    new (update-entity @entities)]
                                 (reset! entities new)
-                                (p/update-entities w new)))
+                                (p/update-entity w new))
+                              )
                     :render (fn [game] nil)}}))
 
 (defn update-entity [e]

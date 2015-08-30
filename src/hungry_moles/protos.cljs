@@ -1,22 +1,36 @@
 (ns hungry-moles.protos
-  (:require-macros [hungry-moles.macros :as m]))
+  (:require-macros [hungry-moles.core :as m]))
+
+(def entities (atom))
+(declare make-body)
 
 ;; PROTOS
 
 (defprotocol IManageEntities
-  (add-entities [this entities])
+  (add-entity [this e])
   (get-entities [this])
-  (update-entities [this entities]))
+  (update-entity [this e]))
 
 (defprotocol IVisibleBody
   (attach [this parent])
   (update! [this entity])
-  (add-animations [this details])
+  (add-animations [this])
   (play-animation [this name]))
 
-(defrecord PhysicalBody [game x y key primitive]
+(defprotocol IEntityStorage
+  (get-body [this uuid])
+  (get-primitive [this uuid])
+  (get-spec [this uuid])
+  (register-entity [this e]))
+
+(defprotocol IEntity
+  (preload [this game])
+  (create [this game primitive]))
+
+(defrecord PhysicalBody [game x y key animations primitive]
   IVisibleBody
   (attach [this parent]
+    (add-animations this)
     (m/call-in* parent [add] primitive))
   
   (update! [this entity]
@@ -26,8 +40,8 @@
       (set! (.-x p) x)
       (set! (.-y p) y)))
 
-  (add-animations [this details]
-    (doseq [anim-list details]
+  (add-animations [this]
+    (doseq [anim-list animations]
       (doseq [anim anim-list]
         (let [name (clj->js (first anim))
               d (second anim)]
@@ -37,22 +51,18 @@
     (m/call-in* primitive [play] name)))
 
 
-(defn create-primitive
-  [game record]
-  (let [p (js/Phaser.Sprite. game (:x record) (:y record) (:key record))]
-    (set! (.-physicsBodyType p) (.-ARCADE js/Phaser.Physics))
-    p))
-
 (extend-type js/Phaser.World
   IManageEntities
-  (add-entities [this entities]
-    (doseq [e entities]
-      (attach (:body e) this)))
+  (add-entity [this e]
+    (let [uuid (:uuid (meta e))
+          primitive (make-body (.-game this) e)
+          c (create (:entity (meta e)) (.-game this) primitive)]
+      (swap! entities assoc uuid c)
+      (attach c this)))
   
-  (update-entities [this entities]
-    (doseq [e entities]
-      (update! (:body e) e))))
-
+  (update-entity [this e]
+    (let [uuid (:uuid (meta e))]
+      (update! (get @entities uuid) e))))
 
 (defn defscreen [& params]
   (let [params (apply hash-map params)
@@ -65,6 +75,7 @@
                   (reify Object
                     ;; preload
                     (preload [_]
+                      
                       ((:preload state-obj) game))
                     ;; create
                     (create [_]
@@ -86,9 +97,12 @@
 
 (defn make-body [game params]
   "Creates physical system object, attaches it to the entity and creates primitive (drawing)"
-  (let [s (PhysicalBody. game (:x params) (:y params) (:key params) (create-primitive game params))]
-    (if-let [a (:animations params)]
-      (add-animations s a))
+  (let [cp
+        (fn [game record]
+          (let [p (js/Phaser.Sprite. game (:x record) (:y record) (:key record))]
+            (set! (.-physicsBodyType p) (.-ARCADE js/Phaser.Physics))
+            p))
+        s (cp game params)]
     s))
 
 ;; helpers
@@ -111,3 +125,6 @@
   :default
   [game entity]
   (m/call-in* game [-load image] (:key entity) (:src (:asset entity))))
+
+(defn get-body [uuid]
+  (get @entities uuid))
