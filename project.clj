@@ -21,7 +21,7 @@
   :cljsbuild {:builds [ { :id "user" 
                          :source-paths ["src/"]
                          :figwheel true
-                         :compiler {:main "hungry-moles.core"
+                         :compiler {:main "hungry-moles.test-impl"
                                     :optimizations :none
                                     :asset-path "assets/js/"
                                     :output-to "resources/public/assets/js/main.js"
