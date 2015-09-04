@@ -199,7 +199,7 @@
     ;; (set-alive! b (:visible params))
     (register-entity storage params uuid b p)))
 
-(defn with-group [group & body]
-  )
 
 ;;;
+;; (with-group invaders 
+;;   (play-animation "fly"))

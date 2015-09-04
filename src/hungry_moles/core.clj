@@ -39,6 +39,15 @@
                 (hungry-moles.core/create-entity game# sym# ~params)
                 (hungry-moles.core/add-entity parent# sym#))))}))))
 
+(defmacro with-group* [group & body]
+  `(do
+     ~@(for [c body]
+         `(dorun
+           (map
+            (fn [u#]
+              (~(first c) (hungry-moles.core/get-body hungry-moles.core/storage u#) ~@(rest c)))
+            (:children ~group))))))
+
 ;; (defgroup* invaders 20
 ;;     {:key "invaders"
 ;;      :asset {:src "assets/img/invader32x32x4.png"

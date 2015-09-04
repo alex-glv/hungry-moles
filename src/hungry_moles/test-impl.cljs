@@ -1,5 +1,5 @@
 (ns hungry-moles.test-impl
-  (:require-macros [hungry-moles.core :refer (defentity* defgroup* )])
+  (:require-macros [hungry-moles.core :refer (defentity* defgroup* with-group*)])
   (:require [hungry-moles.core])
   (:use [hungry-moles.core :only (defscreen PhysicalBody get-body storage play-animation update! update-entity *uuid-fn* IEntity preload create load-resource create-entity)]
         [hungry-moles.helpers :only (grid)]))
@@ -39,14 +39,15 @@
     :entities [ship invaders]
     :states {:Play {:preload (fn [game] (.log js/console "Preload. Entities in registry: " (count storage) ))
                     :create (fn [game parent]
-                              ;; (play-animation (get-body storage invaders) "fly")
                               (reset! ship-mutable ship)
                               (dorun
                                (map (fn [e c]
                                       (let [[x y] c]
                                         (update! (get-body storage e) (assoc invaders :x x :y y))
-                                        (play-animation (get-body storage e) "fly")))
-                                    (:children invaders) (grid 20 2 40 40 40))))
+                                        
+                                        ))
+                                    (:children invaders) (grid 20 2 40 40 40)))
+                              (with-group* invaders (play-animation "fly")))
                     :update (fn [game parent]
                               (let [new (update-screen @ship-mutable)]
                                 (swap! ship-mutable assoc :x (:x new) :y (:y new))
