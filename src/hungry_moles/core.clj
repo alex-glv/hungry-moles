@@ -20,14 +20,24 @@
           (reify IEntity
             (~'preload [this# game#]
               (load-resource game# ~params))
-            (~'create [this# game#]
-              (hungry-moles.core/create-entity game# uuid# ~params)))}))))
+            (~'create [this# game# parent#]
+              (hungry-moles.core/create-entity game# uuid# ~params)
+              (hungry-moles.core/add-entity parent# uuid#)))}))))
 
 (defmacro defgroup* [name total params]
-  (let [gen-names (take total (repeatedly #(gensym name)))]
-    `(do
-       ~@(map (fn [uuid] `(defentity* ~uuid ~params)) gen-names)
-       (def ~name (vector ~@(map (fn [uuid] `@(var ~uuid)) gen-names))))))
+  `(def ~name
+     (let [uuid# (hungry-moles.core/*uuid-fn*)
+           s# (take ~total (repeatedly hungry-moles.core/*uuid-fn*))]
+       (with-meta (assoc ~params :children s#)
+         {:uuid uuid#
+          :entity
+          (reify IEntity
+            (~'preload [this# game#]
+              (load-resource game# ~params))
+            (~'create [this# game# parent#]               
+              (doseq [sym# s#]
+                (hungry-moles.core/create-entity game# sym# ~params)
+                (hungry-moles.core/add-entity parent# sym#))))}))))
 
 ;; (defgroup* invaders 20
 ;;     {:key "invaders"
@@ -40,3 +50,6 @@
      
 ;;      :visible false
 ;;      })
+;; (with-group invaders
+;;   (play-animation "fly")
+;;   )

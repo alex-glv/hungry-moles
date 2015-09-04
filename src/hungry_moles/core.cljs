@@ -11,9 +11,9 @@
 ;; PROTOS
 
 (defprotocol IManageEntities
-  (add-entity [this e])
+  (add-entity [this uuid])
   (get-entities [this])
-  (update-entity [this e])
+  (update-entity [this uuid])
   )
 
 (defprotocol IBody
@@ -33,20 +33,20 @@
                   
 (defprotocol IEntity
   (preload [this game])
-  (create [this game]))
+  (create [this game parent]))
 
 (defrecord EntityStorage [ ^:mutable st]
   IEntityStorage
-  (-record-meta [this e]
-    (get @st (:uuid (meta e))))
-  (get-body [this e]
-    (let [rm (-record-meta this e)]
+  (-record-meta [this uuid]
+    (get @st uuid))
+  (get-body [this uuid]
+    (let [rm (-record-meta this uuid)]
       (:body rm)))
-  (-get-primitive [this e]
-    (let [rm (-record-meta this e)]
+  (-get-primitive [this uuid]
+    (let [rm (-record-meta this uuid)]
       (:primitive rm)))
-  (get-spec [this e]
-    (let [rm (-record-meta this e)]
+  (get-spec [this uuid]
+    (let [rm (-record-meta this uuid)]
       (:spec rm)))
   (register-entity [this spec uuid body primitive]
     (swap! st assoc
@@ -71,11 +71,11 @@
   (update! [this entity]
     (let [x (:x entity)
           y (:y entity)
-          v (:visible entity)
+          ;; v (:visible entity)
           p primitive]
+      
       (set! (.-x p) x)
-      (set! (.-y p) y)
-      (set! (.-visible p) v)))
+      (set! (.-y p) y)))
 
   (add-animations [this a]
     (defanimations a primitive))
@@ -85,19 +85,17 @@
 
 (def storage (EntityStorage. (atom {})))
 
-
-
 (defrecord Group [primitive key]
   IBody
   (enable-body! [this]
     (set! (.-enableBody primitive) true))
   IManageEntities
-  (add-entity [this e]
-    (let [p (-get-primitive storage e)]
+  (add-entity [this uuid]
+    (let [p (-get-primitive storage uuid)]
       (call-in* primitive [add] p)))
   
   (update-entity [this e]
-    (update! (get-body storage e) e))
+    (update! (get-body storage (:uuid (meta e))) e))
 
   IVisibleBody
   (add-animations [this a]
@@ -133,8 +131,8 @@
                        (= :arcade sys) (.startSystem (.-physics game) (.-ARCADE js/Phaser.Physics))
                        :else (throw (js/Error. "System is not supported!"))))
                    (doseq [e entities]
-                     (create (:entity (meta e)) game)
-                     (add-entity top-group e))
+                     (.log js/console (:primitive top-group))
+                     (create (:entity (meta e)) game top-group))
                    ((:create state-obj) game top-group)))
                ;; update
                (update [_] ((:update state-obj) game (make-group (.-world game))))
@@ -153,17 +151,14 @@
   (letfn [(cp [game record]
             (let [p (js/Phaser.Sprite. game (:x record) (:y record) (:key record))]
               (set! (.-visible p) (:visible record))
+              (set! (.-exists p) (:visible record))
+              (set! (.-alive p) (:visible record))
               (set! (.-physicsBodyType p) (.-ARCADE js/Phaser.Physics))
-                 p))]
+              p))]
           (cp game params)))
 
 ;; helpers
 
-
-
-(defn group-play-animation [e name]
-  (let [body (get-body storage e)]
-    (play-animation body name)))
 
 (defn make-group
   ([parent]

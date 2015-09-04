@@ -25,7 +25,7 @@
      :animations [{:fly {:frames [0 1 2 3]
                          :loop true
                          :fps 20}}]
-     :visible true
+     :visible false
      }))
 
 ;; (defgroup* bullets)
@@ -36,7 +36,7 @@
     :size [800 600] 
     :title "invaders"
     :start-system :arcade
-    :entities [ship]
+    :entities [ship invaders]
     :states {:Play {:preload (fn [game] (.log js/console "Preload. Entities in registry: " (count storage) ))
                     :create (fn [game parent]
                               ;; (play-animation (get-body storage invaders) "fly")
@@ -44,7 +44,7 @@
                     :update (fn [game parent]
                               (let [new (update-screen @ship-mutable)]
                                 (swap! ship-mutable assoc :x (:x new) :y (:y new))
-                                (update-entity parent @ship-mutable)))
+                                (update-entity parent new)))
                     :render (fn [game parent] nil)}}))
 
 (defn update-screen [e]
