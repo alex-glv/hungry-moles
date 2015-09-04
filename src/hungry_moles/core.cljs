@@ -21,6 +21,8 @@
 
 (defprotocol IVisibleBody
   (update! [this entity])
+  (set-alive! [this entity])
+  (set-visible! [this entity])
   (add-animations [this a])
   (play-animation [this name]))
 
@@ -73,10 +75,17 @@
           y (:y entity)
           ;; v (:visible entity)
           p primitive]
-      
       (set! (.-x p) x)
       (set! (.-y p) y)))
 
+  (set-visible! [this entity]
+    (set! (.-visible primitive) (:visible entity)))
+  
+  (set-alive! [this entity]
+    (set! (.-visible primitive) (:alive entity)))
+  ;; (set-exists! [this entity]
+  ;;   (set! (.-exists primitive) (:exists entity)))
+  
   (add-animations [this a]
     (defanimations a primitive))
 
@@ -186,7 +195,11 @@
   (let [p (make-body game params)
         b (PhysicalBody. game (:x params) (:y params) (:key params) p)]
     (add-animations b (:animations params))
+    ;; (set-visible! b (:visible params))
+    ;; (set-alive! b (:visible params))
     (register-entity storage params uuid b p)))
 
+(defn with-group [group & body]
+  )
 
 ;;;

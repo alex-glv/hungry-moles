@@ -1,7 +1,7 @@
 (ns hungry-moles.test-impl
   (:require-macros [hungry-moles.core :refer (defentity* defgroup* )])
   (:require [hungry-moles.core])
-  (:use [hungry-moles.core :only (defscreen PhysicalBody get-body storage play-animation update-entity *uuid-fn* IEntity preload create load-resource create-entity)]
+  (:use [hungry-moles.core :only (defscreen PhysicalBody get-body storage play-animation update! update-entity *uuid-fn* IEntity preload create load-resource create-entity)]
         [hungry-moles.helpers :only (grid)]))
 
 (defonce game (atom))
@@ -17,7 +17,7 @@
      :visible true
      })
 
-  (defgroup* invaders 20
+  (defgroup* invaders 40
     {:key "invaders"
      :asset {:src "assets/img/invader32x32x4.png"
              :type :spritesheet
@@ -25,7 +25,7 @@
      :animations [{:fly {:frames [0 1 2 3]
                          :loop true
                          :fps 20}}]
-     :visible false
+     :visible true
      }))
 
 ;; (defgroup* bullets)
@@ -40,7 +40,13 @@
     :states {:Play {:preload (fn [game] (.log js/console "Preload. Entities in registry: " (count storage) ))
                     :create (fn [game parent]
                               ;; (play-animation (get-body storage invaders) "fly")
-                              (reset! ship-mutable ship))
+                              (reset! ship-mutable ship)
+                              (dorun
+                               (map (fn [e c]
+                                      (let [[x y] c]
+                                        (update! (get-body storage e) (assoc invaders :x x :y y))
+                                        (play-animation (get-body storage e) "fly")))
+                                    (:children invaders) (grid 20 2 40 40 40))))
                     :update (fn [game parent]
                               (let [new (update-screen @ship-mutable)]
                                 (swap! ship-mutable assoc :x (:x new) :y (:y new))
