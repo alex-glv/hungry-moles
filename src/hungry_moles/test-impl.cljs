@@ -5,7 +5,6 @@
         [hungry-moles.helpers :only (grid)]))
 
 (defonce game (atom))
-(defonce ship-mutable (atom))
 (declare update-screen)
 
 (defn create-entities []
@@ -39,19 +38,26 @@
     :entities [ship invaders]
     :states {:Play {:preload (fn [game] (.log js/console "Preload. Entities in registry: " (count storage) ))
                     :create (fn [game parent]
-                              (reset! ship-mutable ship)
                               (dorun
                                (map (fn [e c]
                                       (let [[x y] c]
-                                        (update! (get-body storage e) (assoc invaders :x x :y y))
-                                        
-                                        ))
+                                        (update! (get-body storage e) (assoc invaders :x x :y y))))
                                     (:children invaders) (grid 20 2 40 40 40)))
                               (with-group* invaders (play-animation "fly")))
                     :update (fn [game parent]
-                              (let [new (update-screen @ship-mutable)]
-                                (swap! ship-mutable assoc :x (:x new) :y (:y new))
-                                (update-entity parent new)))
+                              (let [kb (.-keyboard (.-input game))]
+                                
+                                (if (.isDown kb (.-LEFT (.-Keyboard js/Phaser)))
+                                  ;; todo: add left handle
+                                  )
+                                (if (.isDown kb (.-RIGHT (.-Keyboard js/Phaser)))
+                                  ;; todo add rigth handler
+                                  )
+                                
+                                ;; (update-entity parent #(assoc % :x (:x new) :y (:y new)))
+                                ;; (swap! ship-mutable assoc :x (:x new) :y (:y new))
+                                ;; (update-entity parent new)
+                                ))
                     :render (fn [game parent] nil)}}))
 
 (defn update-screen [e]
